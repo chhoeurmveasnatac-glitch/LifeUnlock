@@ -1,0 +1,8 @@
+{
+  "name": "LifeUnlock",
+  "description": "A comprehensive SaaS platform for personal finance management, life goal tracking, and automated money allocation using the bucket system.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
