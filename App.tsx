@@ -8,9 +8,11 @@ import {
   Rule, 
   TransactionType, 
   UserProfile,
-  SubscriptionTier 
+  SubscriptionTier,
+  Plan,
+  Category
 } from './types';
-import { NAV_ITEMS } from './constants';
+import { NAV_ITEMS, CATEGORIES as DEFAULT_CATEGORIES_STRINGS } from './constants';
 import Dashboard from './pages/Dashboard';
 import Goals from './pages/Goals';
 import Buckets from './pages/Buckets';
@@ -42,14 +44,31 @@ const App: React.FC = () => {
   // User Profile
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
-  // Data States with initial mock data fallback
-  const [buckets, setBuckets] = useState<Bucket[]>([
-    { id: '1', name: 'Education', currentBalance: 5000, icon: 'education', targetPercentage: 10 },
-    { id: '2', name: 'Emergency', currentBalance: 12000, icon: 'emergency', targetPercentage: 20 },
-    { id: '3', name: 'Daily Expenses', currentBalance: 8500, icon: 'food', targetPercentage: 50 },
-    { id: '4', name: 'Dream Car', currentBalance: 15000, icon: 'car', targetPercentage: 15 },
-    { id: '5', name: 'New Home', currentBalance: 45000, icon: 'home', targetPercentage: 5 },
-  ]);
+  // Data States
+  const [buckets, setBuckets] = useState<Bucket[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  // Fetch Categories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabase.from('categories').select('*').order('name');
+      if (!error && data && data.length > 0) {
+        setCategories(data);
+      } else {
+        // Fallback or Seed if empty
+        const defaultCats: Category[] = DEFAULT_CATEGORIES_STRINGS.map((name, i) => ({
+          id: `cat-${i}`,
+          name,
+          type: 'EXPENSE'
+        }));
+        // Add some Income ones for fallback
+        defaultCats.push({ id: 'inc-1', name: 'Salary', type: 'INCOME' });
+        defaultCats.push({ id: 'inc-2', name: 'Business', type: 'INCOME' });
+        setCategories(defaultCats);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   // Fetch Buckets from Supabase and Seed if empty
   useEffect(() => {
@@ -69,7 +88,6 @@ const App: React.FC = () => {
           setBuckets(mappedBuckets);
         } else {
           // SEED DATA: If buckets table is empty, insert default buckets
-          // This ensures that Goals have valid foreign keys to reference.
           const defaultBuckets = [
             { id: '1', name: 'Education', current_balance: 5000, icon: 'education', target_percentage: 10, fixed_amount: 0 },
             { id: '2', name: 'Emergency', current_balance: 12000, icon: 'emergency', target_percentage: 20, fixed_amount: 0 },
@@ -83,7 +101,14 @@ const App: React.FC = () => {
             console.error('Failed to seed buckets:', insertError);
           } else {
             console.log('Seeded default buckets to Supabase');
-            // We keep the initial state as it matches the seed data
+            // Optimistically set buckets
+            setBuckets(defaultBuckets.map(b => ({
+              id: b.id,
+              name: b.name,
+              currentBalance: b.current_balance,
+              icon: b.icon,
+              targetPercentage: b.target_percentage
+            })));
           }
         }
       }
@@ -144,10 +169,103 @@ const App: React.FC = () => {
     fetchGoals();
   }, []);
 
-  const [rules, setRules] = useState<Rule[]>([
-    { id: 'r1', name: 'Emergency Auto-Save', type: 'PERCENTAGE', value: 20, targetBucketId: '2' },
-    { id: 'r2', name: 'Fixed Education Fund', type: 'FIXED', value: 3000, targetBucketId: '1' },
-  ]);
+  const [rules, setRules] = useState<Rule[]>([]);
+
+  // Fetch Rules from Supabase
+  useEffect(() => {
+    const fetchRules = async () => {
+      const { data, error } = await supabase.from('rules').select('*');
+      if (!error && data) {
+        const mappedRules: Rule[] = data.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          type: r.type,
+          value: r.value,
+          targetBucketId: r.target_bucket_id
+        }));
+        setRules(mappedRules);
+      }
+    };
+    fetchRules();
+  }, []);
+
+  const [plans, setPlans] = useState<Plan[]>([]);
+
+  // Fetch Plans from Supabase and Seed if empty
+  useEffect(() => {
+    const fetchPlans = async () => {
+      const { data, error } = await supabase.from('plans').select('*').order('raw_price', { ascending: true });
+      
+      if (!error) {
+        if (data && data.length > 0) {
+          const mappedPlans: Plan[] = data.map((p: any) => ({
+            id: p.id,
+            nameKey: p.name_key,
+            priceKey: p.price_key,
+            rawPrice: p.raw_price,
+            features: p.features,
+            color: p.color,
+            iconKey: p.icon_key,
+            isPopular: p.is_popular
+          }));
+          setPlans(mappedPlans);
+        } else {
+          // SEED DATA for Plans
+          const defaultPlans = [
+            {
+              id: 'STARTER',
+              name_key: 'starter',
+              price_key: 'free',
+              raw_price: 0,
+              features: ['f1', 'f2', 'f3', 'f4', 'f5'],
+              color: 'slate',
+              icon_key: 'rocket',
+              is_popular: false
+            },
+            {
+              id: 'PRO',
+              name_key: 'pro',
+              price_key: 'monthly',
+              raw_price: 9.99,
+              features: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'],
+              color: 'indigo',
+              icon_key: 'zap',
+              is_popular: true
+            },
+            {
+              id: 'LIFETIME',
+              name_key: 'lifetime',
+              price_key: 'once',
+              raw_price: 99,
+              features: ['l1', 'l2', 'l3', 'l4', 'l5'],
+              color: 'emerald',
+              icon_key: 'crown',
+              is_popular: false
+            }
+          ];
+          
+          const { error: insertError } = await supabase.from('plans').insert(defaultPlans);
+          if (insertError) {
+            console.error('Failed to seed plans:', insertError);
+          } else {
+            console.log('Seeded default plans to Supabase');
+            // Optimistically set plans
+            setPlans(defaultPlans.map(p => ({
+              id: p.id as SubscriptionTier,
+              nameKey: p.name_key,
+              priceKey: p.price_key,
+              rawPrice: p.raw_price,
+              features: p.features,
+              color: p.color,
+              iconKey: p.icon_key,
+              isPopular: p.is_popular
+            })));
+          }
+        }
+      }
+    };
+    fetchPlans();
+  }, []);
 
   const [budgets, setBudgets] = useState<Budget[]>([
     { id: 'b1', category: 'Food & Dining', monthlyLimit: 8000, currentSpending: 4500 },
@@ -187,6 +305,7 @@ const App: React.FC = () => {
                   buckets={buckets} 
                   transactions={transactions} 
                   goals={goals} 
+                  categories={categories}
                   totalBalance={totalBalance}
                   profile={profile}
                   onAddTransaction={handleAddTransaction}
@@ -207,6 +326,7 @@ const App: React.FC = () => {
         return <Transactions 
                   transactions={transactions} 
                   buckets={buckets}
+                  categories={categories}
                   onAddTransaction={handleAddTransaction}
                   onUpdateBuckets={setBuckets}
                   onUpdateTransactions={setTransactions} 
@@ -220,10 +340,12 @@ const App: React.FC = () => {
                   goals={goals} 
                   onAddRule={(r) => setRules([...rules, r])} 
                   onUpdateBuckets={setBuckets}
+                  onUpdateRules={setRules}
                   lang={lang}
                 />;
       case 'pricing':
         return <Pricing 
+          plans={plans}
           currentTier={profile?.subscription || 'STARTER'} 
           profile={profile}
           onUpgrade={(tier) => {
@@ -236,6 +358,7 @@ const App: React.FC = () => {
                   buckets={buckets} 
                   transactions={transactions} 
                   goals={goals} 
+                  categories={categories}
                   totalBalance={totalBalance}
                   profile={profile}
                   onAddTransaction={handleAddTransaction}

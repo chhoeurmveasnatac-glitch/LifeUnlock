@@ -1,24 +1,25 @@
 
 import React, { useState } from 'react';
-import { SubscriptionTier, UserProfile } from '../types';
+import { SubscriptionTier, UserProfile, Plan } from '../types';
 import { Check, Zap, Crown, Rocket, X, CreditCard, Loader2 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 
 interface Props {
+  plans: Plan[];
   currentTier: SubscriptionTier;
   profile: UserProfile | null;
   onUpgrade: (tier: SubscriptionTier) => void;
   lang: 'EN' | 'KH';
 }
 
-const Pricing: React.FC<Props> = ({ currentTier, profile, onUpgrade, lang }) => {
+const Pricing: React.FC<Props> = ({ plans, currentTier, profile, onUpgrade, lang }) => {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [selectedPlanData, setSelectedPlanData] = useState<any>(null);
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const t = {
+  const t: Record<string, any> = {
     EN: {
       title: "Choose Your Plan",
       desc: "Scale your financial system as you grow. Start for free and upgrade when you're ready for total financial automation.",
@@ -26,8 +27,8 @@ const Pricing: React.FC<Props> = ({ currentTier, profile, onUpgrade, lang }) => 
       pro: "Pro Monthly",
       lifetime: "Lifetime",
       free: "Free",
-      mo: "/mo",
-      once: "once",
+      monthly: "$9.99/mo",
+      once: "$99 once",
       current: "Current Plan",
       select: "Select Plan",
       bestValue: "Best Value",
@@ -64,8 +65,8 @@ const Pricing: React.FC<Props> = ({ currentTier, profile, onUpgrade, lang }) => 
       pro: "Pro ប្រចាំខែ",
       lifetime: "មួយជីវិត",
       free: "ឥតគិតថ្លៃ",
-      mo: "/ខែ",
-      once: "ម្តង",
+      monthly: "$9.99/ខែ",
+      once: "$99 ម្តង",
       current: "គម្រោងបច្ចុប្បន្ន",
       select: "ជ្រើសរើស",
       bestValue: "តម្លៃល្អបំផុត",
@@ -97,38 +98,16 @@ const Pricing: React.FC<Props> = ({ currentTier, profile, onUpgrade, lang }) => 
     }
   }[lang];
 
-  const plans = [
-    {
-      id: 'STARTER' as SubscriptionTier,
-      name: t.starter,
-      price: t.free,
-      rawPrice: 0,
-      icon: <Rocket size={32} />,
-      features: [t.f1, t.f2, t.f3, t.f4, t.f5],
-      color: 'slate'
-    },
-    {
-      id: 'PRO' as SubscriptionTier,
-      name: t.pro,
-      price: '$9.99' + t.mo,
-      rawPrice: 9.99,
-      icon: <Zap size={32} />,
-      features: [t.p1, t.p2, t.p3, t.p4, t.p5, t.p6],
-      color: 'indigo',
-      popular: true
-    },
-    {
-      id: 'LIFETIME' as SubscriptionTier,
-      name: t.lifetime,
-      price: '$99 ' + t.once,
-      rawPrice: 99,
-      icon: <Crown size={32} />,
-      features: [t.l1, t.l2, t.l3, t.l4, t.l5],
-      color: 'emerald'
+  const getIcon = (key: string) => {
+    switch(key) {
+      case 'rocket': return <Rocket size={32} />;
+      case 'zap': return <Zap size={32} />;
+      case 'crown': return <Crown size={32} />;
+      default: return <Rocket size={32} />;
     }
-  ];
+  };
 
-  const handleSelectPlan = (plan: any) => {
+  const handleSelectPlan = (plan: Plan) => {
     if (plan.id === 'STARTER') {
       onUpgrade('STARTER');
       return;
@@ -150,7 +129,7 @@ const Pricing: React.FC<Props> = ({ currentTier, profile, onUpgrade, lang }) => 
           {
             user_name: profile?.name || 'Guest User',
             email: email,
-            plan_name: selectedPlanData.name,
+            plan_name: t[selectedPlanData.nameKey] || selectedPlanData.nameKey,
             price: selectedPlanData.rawPrice,
             created_at: new Date().toISOString()
           }
@@ -190,12 +169,12 @@ const Pricing: React.FC<Props> = ({ currentTier, profile, onUpgrade, lang }) => 
             key={plan.id}
             className={`
               relative flex flex-col p-8 bg-white dark:bg-slate-900 rounded-3xl border transition-all duration-300
-              ${plan.popular 
+              ${plan.isPopular 
                 ? 'border-indigo-600 shadow-xl scale-105 z-10' 
                 : 'border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md'}
             `}
           >
-            {plan.popular && (
+            {plan.isPopular && (
               <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-xs font-bold tracking-wider uppercase">
                 {t.bestValue}
               </div>
@@ -204,21 +183,21 @@ const Pricing: React.FC<Props> = ({ currentTier, profile, onUpgrade, lang }) => 
             <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 
               ${plan.color === 'indigo' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : 
                 plan.color === 'emerald' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
-              {plan.icon}
+              {getIcon(plan.iconKey)}
             </div>
 
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{plan.name}</h3>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{t[plan.nameKey] || plan.nameKey}</h3>
             <div className="mb-8">
-              <span className="text-3xl font-bold text-slate-900 dark:text-white">{plan.price}</span>
+              <span className="text-3xl font-bold text-slate-900 dark:text-white">{t[plan.priceKey] || plan.priceKey}</span>
             </div>
 
             <ul className="space-y-4 mb-10 flex-1">
-              {plan.features.map((feature, idx) => (
+              {plan.features.map((featureKey, idx) => (
                 <li key={idx} className="flex items-start space-x-3 text-sm text-slate-600 dark:text-slate-300">
                   <div className="w-5 h-5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Check size={12} strokeWidth={4} />
                   </div>
-                  <span>{feature}</span>
+                  <span>{t[featureKey] || featureKey}</span>
                 </li>
               ))}
             </ul>
@@ -230,7 +209,7 @@ const Pricing: React.FC<Props> = ({ currentTier, profile, onUpgrade, lang }) => 
                 w-full py-4 rounded-2xl font-bold transition-all
                 ${currentTier === plan.id 
                   ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-default' 
-                  : plan.popular 
+                  : plan.isPopular 
                     ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none' 
                     : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100'}
               `}
@@ -269,11 +248,11 @@ const Pricing: React.FC<Props> = ({ currentTier, profile, onUpgrade, lang }) => 
                   <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl space-y-1 border border-slate-100 dark:border-slate-800">
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-500 dark:text-slate-400">{t.confirmPlan}</span>
-                      <span className="font-bold text-slate-900 dark:text-white">{selectedPlanData.name}</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{t[selectedPlanData.nameKey] || selectedPlanData.nameKey}</span>
                     </div>
                     <div className="flex justify-between text-lg">
                       <span className="font-bold text-slate-700 dark:text-slate-300">{t.price}</span>
-                      <span className="font-bold text-indigo-600 dark:text-indigo-400">{selectedPlanData.price}</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400">{t[selectedPlanData.priceKey] || selectedPlanData.priceKey}</span>
                     </div>
                   </div>
 

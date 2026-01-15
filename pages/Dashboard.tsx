@@ -5,9 +5,10 @@ import {
   Transaction, 
   Goal, 
   UserProfile, 
-  TransactionType 
+  TransactionType,
+  Category
 } from '../types';
-import { ICON_MAP, CATEGORIES } from '../constants';
+import { ICON_MAP } from '../constants';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -33,6 +34,7 @@ interface Props {
   buckets: Bucket[];
   transactions: Transaction[];
   goals: Goal[];
+  categories: Category[];
   totalBalance: number;
   profile: UserProfile | null;
   onAddTransaction: (t: Transaction) => void;
@@ -41,12 +43,12 @@ interface Props {
   lang: 'EN' | 'KH';
 }
 
-const Dashboard: React.FC<Props> = ({ buckets, transactions, goals, totalBalance, profile, onAddTransaction, onNavigate, theme, lang }) => {
+const Dashboard: React.FC<Props> = ({ buckets, transactions, goals, categories, totalBalance, profile, onAddTransaction, onNavigate, theme, lang }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTx, setNewTx] = useState({
     amount: '',
     type: TransactionType.EXPENSE,
-    category: CATEGORIES[0],
+    category: '', // Will be set when opening modal or changing type
     bucketId: buckets[0]?.id || '',
     note: '',
     date: new Date().toISOString().split('T')[0]
@@ -74,7 +76,8 @@ const Dashboard: React.FC<Props> = ({ buckets, transactions, goals, totalBalance
       date: "Date",
       save: "Save Transaction",
       selectBucket: "Select Bucket",
-      amount: "Amount ($)"
+      amount: "Amount ($)",
+      selectCategory: "Select Category"
     },
     KH: {
       hello: "សួស្តី",
@@ -97,7 +100,8 @@ const Dashboard: React.FC<Props> = ({ buckets, transactions, goals, totalBalance
       date: "កាលបរិច្ឆេទ",
       save: "រក្សាទុកប្រតិបត្តិការ",
       selectBucket: "ជ្រើសរើសកញ្ចប់",
-      amount: "ចំនួនប្រាក់ ($)"
+      amount: "ចំនួនប្រាក់ ($)",
+      selectCategory: "ជ្រើសរើសប្រភេទ"
     }
   }[lang];
 
@@ -125,9 +129,13 @@ const Dashboard: React.FC<Props> = ({ buckets, transactions, goals, totalBalance
 
   const COLORS = ['#6366f1', '#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
 
+  const getFilteredCategories = (type: TransactionType) => {
+    return categories.filter(c => c.type === type || c.type === 'BOTH');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTx.amount || !newTx.bucketId) return;
+    if (!newTx.amount || !newTx.bucketId || !newTx.category) return;
 
     const amount = parseFloat(newTx.amount);
     const txId = 't' + Date.now();
@@ -176,7 +184,7 @@ const Dashboard: React.FC<Props> = ({ buckets, transactions, goals, totalBalance
       setNewTx({
         amount: '',
         type: TransactionType.EXPENSE,
-        category: CATEGORIES[0],
+        category: getFilteredCategories(TransactionType.EXPENSE)[0]?.name || '',
         bucketId: buckets[0]?.id || '',
         note: '',
         date: new Date().toISOString().split('T')[0]
@@ -189,6 +197,20 @@ const Dashboard: React.FC<Props> = ({ buckets, transactions, goals, totalBalance
     }
   };
 
+  const handleOpenModal = () => {
+    // Set default category based on expense type when opening
+    const expenseCats = getFilteredCategories(TransactionType.EXPENSE);
+    setNewTx({
+        amount: '',
+        type: TransactionType.EXPENSE,
+        category: expenseCats[0]?.name || '',
+        bucketId: buckets[0]?.id || '',
+        note: '',
+        date: new Date().toISOString().split('T')[0]
+    });
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="p-6 md:p-10 space-y-8 relative dark:text-slate-100">
       {/* Welcome Header */}
@@ -199,7 +221,7 @@ const Dashboard: React.FC<Props> = ({ buckets, transactions, goals, totalBalance
         </div>
         <div className="flex items-center space-x-3">
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenModal}
             className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition shadow-sm font-semibold"
           >
             <Plus size={18} />
@@ -383,14 +405,28 @@ const Dashboard: React.FC<Props> = ({ buckets, transactions, goals, totalBalance
               <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
                 <button
                   type="button"
-                  onClick={() => setNewTx({...newTx, type: TransactionType.EXPENSE})}
+                  onClick={() => {
+                    const newType = TransactionType.EXPENSE;
+                    setNewTx({
+                        ...newTx, 
+                        type: newType,
+                        category: getFilteredCategories(newType)[0]?.name || ''
+                    });
+                  }}
                   className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${newTx.type === TransactionType.EXPENSE ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
                 >
                   {t.expense}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setNewTx({...newTx, type: TransactionType.INCOME})}
+                  onClick={() => {
+                    const newType = TransactionType.INCOME;
+                    setNewTx({
+                        ...newTx, 
+                        type: newType,
+                        category: getFilteredCategories(newType)[0]?.name || ''
+                    });
+                  }}
                   className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${newTx.type === TransactionType.INCOME ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
                 >
                   {t.income}
@@ -418,7 +454,7 @@ const Dashboard: React.FC<Props> = ({ buckets, transactions, goals, totalBalance
                     value={newTx.category}
                     onChange={(e) => setNewTx({...newTx, category: e.target.value})}
                   >
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    {getFilteredCategories(newTx.type).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                   </select>
                 </div>
                 <div className="space-y-2">

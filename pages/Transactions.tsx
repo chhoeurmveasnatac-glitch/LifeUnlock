@@ -1,20 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
-import { Transaction, Bucket, TransactionType } from '../types';
-import { CATEGORIES } from '../constants';
+import { Transaction, Bucket, TransactionType, Category } from '../types';
 import { Search, Filter, ArrowUpRight, ArrowDownLeft, Plus, Calendar, X, TrendingUp, TrendingDown, MoreVertical, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 
 interface Props {
   transactions: Transaction[];
   buckets: Bucket[];
+  categories: Category[];
   onAddTransaction: (t: Transaction) => void;
   onUpdateBuckets: (buckets: Bucket[]) => void;
   onUpdateTransactions: (transactions: Transaction[]) => void;
   lang: 'EN' | 'KH';
 }
 
-const Transactions: React.FC<Props> = ({ transactions, buckets, onAddTransaction, onUpdateBuckets, onUpdateTransactions, lang }) => {
+const Transactions: React.FC<Props> = ({ transactions, buckets, categories, onAddTransaction, onUpdateBuckets, onUpdateTransactions, lang }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -24,7 +24,7 @@ const Transactions: React.FC<Props> = ({ transactions, buckets, onAddTransaction
   const [newTx, setNewTx] = useState({
     amount: '',
     type: TransactionType.EXPENSE,
-    category: CATEGORIES[0],
+    category: '',
     bucketId: buckets[0]?.id || '',
     note: '',
     date: new Date().toISOString().split('T')[0]
@@ -109,6 +109,10 @@ const Transactions: React.FC<Props> = ({ transactions, buckets, onAddTransaction
     t.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const getFilteredCategories = (type: TransactionType) => {
+    return categories.filter(c => c.type === type || c.type === 'BOTH');
+  };
+
   const toggleMenu = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setOpenMenuId(openMenuId === id ? null : id);
@@ -176,7 +180,7 @@ const Transactions: React.FC<Props> = ({ transactions, buckets, onAddTransaction
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTx.amount || !newTx.bucketId) return;
+    if (!newTx.amount || !newTx.bucketId || !newTx.category) return;
 
     const amount = parseFloat(newTx.amount);
 
@@ -313,10 +317,11 @@ const Transactions: React.FC<Props> = ({ transactions, buckets, onAddTransaction
     }
     
     // Reset form
+    const expenseCats = getFilteredCategories(TransactionType.EXPENSE);
     setNewTx({
       amount: '',
       type: TransactionType.EXPENSE,
-      category: CATEGORIES[0],
+      category: expenseCats[0]?.name || '',
       bucketId: buckets[0]?.id || '',
       note: '',
       date: new Date().toISOString().split('T')[0]
@@ -325,10 +330,11 @@ const Transactions: React.FC<Props> = ({ transactions, buckets, onAddTransaction
 
   const handleCreateOpen = () => {
     setEditingId(null);
+    const expenseCats = getFilteredCategories(TransactionType.EXPENSE);
     setNewTx({
       amount: '',
       type: TransactionType.EXPENSE,
-      category: CATEGORIES[0],
+      category: expenseCats[0]?.name || '',
       bucketId: buckets[0]?.id || '',
       note: '',
       date: new Date().toISOString().split('T')[0]
@@ -513,14 +519,28 @@ const Transactions: React.FC<Props> = ({ transactions, buckets, onAddTransaction
               <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
                 <button
                   type="button"
-                  onClick={() => setNewTx({...newTx, type: TransactionType.EXPENSE})}
+                  onClick={() => {
+                      const newType = TransactionType.EXPENSE;
+                      setNewTx({
+                          ...newTx, 
+                          type: newType,
+                          category: getFilteredCategories(newType)[0]?.name || ''
+                      });
+                  }}
                   className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${newTx.type === TransactionType.EXPENSE ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
                 >
                   {t.expense}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setNewTx({...newTx, type: TransactionType.INCOME})}
+                  onClick={() => {
+                    const newType = TransactionType.INCOME;
+                    setNewTx({
+                        ...newTx, 
+                        type: newType,
+                        category: getFilteredCategories(newType)[0]?.name || ''
+                    });
+                  }}
                   className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${newTx.type === TransactionType.INCOME ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
                 >
                   {t.income}
@@ -548,7 +568,7 @@ const Transactions: React.FC<Props> = ({ transactions, buckets, onAddTransaction
                     value={newTx.category}
                     onChange={(e) => setNewTx({...newTx, category: e.target.value})}
                   >
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    {getFilteredCategories(newTx.type).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                   </select>
                 </div>
                 <div className="space-y-2">

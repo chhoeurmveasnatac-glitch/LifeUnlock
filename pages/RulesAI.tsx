@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { Rule, Bucket, Goal } from '../types';
 import { getAutoPlanRecommendation } from '../services/geminiService';
-import { Sparkles, Settings, Bot, ArrowRight, CheckCircle, Info, X, Plus, Check } from 'lucide-react';
+import { Sparkles, Settings, Bot, ArrowRight, CheckCircle, Info, X, Plus, Check, Trash2 } from 'lucide-react';
+import { supabase } from '../services/supabaseClient';
 
 interface Props {
   rules: Rule[];
@@ -11,10 +12,11 @@ interface Props {
   goals: Goal[];
   onAddRule: (rule: Rule) => void;
   onUpdateBuckets: (buckets: Bucket[]) => void;
+  onUpdateRules?: (rules: Rule[]) => void;
   lang: 'EN' | 'KH';
 }
 
-const RulesAI: React.FC<Props> = ({ rules, buckets, income, goals, onAddRule, onUpdateBuckets, lang }) => {
+const RulesAI: React.FC<Props> = ({ rules, buckets, income, goals, onAddRule, onUpdateBuckets, onUpdateRules, lang }) => {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRecs, setAiRecs] = useState<any[]>([]);
   const [appliedIndices, setAppliedIndices] = useState<number[]>([]);
@@ -51,7 +53,8 @@ const RulesAI: React.FC<Props> = ({ rules, buckets, income, goals, onAddRule, on
       targetBucket: "Target Bucket",
       percentDesc: "This rule will take a portion of every incoming transaction.",
       fixedDesc: "This rule will move a set amount of money regularly.",
-      activate: "Activate Rule"
+      activate: "Activate Rule",
+      delete: "Delete"
     },
     KH: {
       title: "ច្បាប់ & ស្វ័យប្រវត្តិកម្ម",
@@ -77,7 +80,8 @@ const RulesAI: React.FC<Props> = ({ rules, buckets, income, goals, onAddRule, on
       targetBucket: "កញ្ចប់គោលដៅ",
       percentDesc: "ច្បាប់នេះនឹងកាត់យកមួយផ្នែកនៃរាល់ចំណូលដែលចូលមក។",
       fixedDesc: "ច្បាប់នេះនឹងផ្លាស់ទីចំនួនប្រាក់កំណត់មួយជាទៀងទាត់។",
-      activate: "ដំណើរការច្បាប់"
+      activate: "ដំណើរការច្បាប់",
+      delete: "លុប"
     }
   }[lang];
 
@@ -116,25 +120,61 @@ const RulesAI: React.FC<Props> = ({ rules, buckets, income, goals, onAddRule, on
     setAppliedIndices(aiRecs.map((_, i) => i));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRule.name || !newRule.value || !newRule.targetBucketId) return;
 
-    onAddRule({
-      id: 'r' + Date.now(),
-      name: newRule.name,
-      type: newRule.type,
-      value: parseFloat(newRule.value),
-      targetBucketId: newRule.targetBucketId
-    });
+    const ruleId = 'r' + Date.now();
+    const val = parseFloat(newRule.value);
 
-    setNewRule({
-      name: '',
-      type: 'PERCENTAGE',
-      value: '',
-      targetBucketId: buckets[0]?.id || ''
-    });
-    setIsModalOpen(false);
+    try {
+      const { error } = await supabase.from('rules').insert([
+        {
+          id: ruleId,
+          name: newRule.name,
+          type: newRule.type,
+          value: val,
+          target_bucket_id: newRule.targetBucketId
+        }
+      ]);
+
+      if (error) throw error;
+
+      onAddRule({
+        id: ruleId,
+        name: newRule.name,
+        type: newRule.type,
+        value: val,
+        targetBucketId: newRule.targetBucketId
+      });
+
+      setNewRule({
+        name: '',
+        type: 'PERCENTAGE',
+        value: '',
+        targetBucketId: buckets[0]?.id || ''
+      });
+      setIsModalOpen(false);
+    } catch (error: any) {
+      console.error('Error adding rule:', error);
+      alert('Failed to add rule: ' + error.message);
+    }
+  };
+
+  const handleDeleteRule = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this rule?')) return;
+    
+    try {
+      const { error } = await supabase.from('rules').delete().eq('id', id);
+      if (error) throw error;
+      
+      if (onUpdateRules) {
+        onUpdateRules(rules.filter(r => r.id !== id));
+      }
+    } catch (error: any) {
+       console.error('Error deleting rule:', error);
+       alert('Failed to delete rule: ' + error.message);
+    }
   };
 
   return (
@@ -161,6 +201,11 @@ const RulesAI: React.FC<Props> = ({ rules, buckets, income, goals, onAddRule, on
           </div>
           
           <div className="space-y-4">
+            {rules.length === 0 && (
+              <div className="text-center p-8 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700 text-slate-400">
+                 No active rules
+              </div>
+            )}
             {rules.map(rule => (
               <div key={rule.id} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 flex items-center justify-between group hover:shadow-md transition-shadow">
                 <div className="flex items-center space-x-4">
@@ -174,11 +219,19 @@ const RulesAI: React.FC<Props> = ({ rules, buckets, income, goals, onAddRule, on
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-                    {rule.type === 'PERCENTAGE' ? `${rule.value}%` : `$${rule.value.toLocaleString()}`}
-                  </p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold">{t.autoAlloc}</p>
+                <div className="flex items-center space-x-4">
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                      {rule.type === 'PERCENTAGE' ? `${rule.value}%` : `$${rule.value.toLocaleString()}`}
+                    </p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold">{t.autoAlloc}</p>
+                  </div>
+                  <button 
+                    onClick={() => handleDeleteRule(rule.id)}
+                    className="p-2 text-slate-300 hover:text-rose-500 transition-colors"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
               </div>
             ))}

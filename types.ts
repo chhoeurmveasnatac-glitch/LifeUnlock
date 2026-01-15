@@ -13,6 +13,12 @@ export interface Bucket {
   icon: string;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  type: 'INCOME' | 'EXPENSE' | 'BOTH';
+}
+
 export interface Transaction {
   id: string;
   amount: number;
@@ -49,6 +55,17 @@ export interface Rule {
 }
 
 export type SubscriptionTier = 'STARTER' | 'PRO' | 'LIFETIME';
+
+export interface Plan {
+  id: SubscriptionTier;
+  nameKey: string;
+  priceKey: string;
+  rawPrice: number;
+  features: string[];
+  color: string;
+  iconKey: string;
+  isPopular?: boolean;
+}
 
 export interface UserProfile {
   name: string;
