@@ -1,14 +1,38 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Fixed: Correctly initialize GoogleGenAI with a named parameter and direct process.env.API_KEY access
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization function
+const getAiClient = () => {
+  const apiKey = process.env.API_KEY;
+  
+  if (!apiKey || apiKey === "undefined") {
+    console.warn("Gemini API Key is missing. AI features will not work.");
+    return null;
+  }
+  
+  try {
+    return new GoogleGenAI({ apiKey });
+  } catch (error) {
+    console.error("Failed to initialize Gemini Client:", error);
+    return null;
+  }
+};
 
 export const getAutoPlanRecommendation = async (
   income: number, 
   goals: any[], 
   currentBuckets: any[]
 ) => {
+  const ai = getAiClient();
+  
+  if (!ai) {
+    return [{
+      bucketName: "Error",
+      suggestedPercentage: 0,
+      reasoning: "API Key is missing or invalid. Please check your configuration."
+    }];
+  }
+
   const prompt = `As a financial advisor for "LifeUnlock", analyze this profile:
   Monthly Income: $${income}
   Goals: ${JSON.stringify(goals)}
@@ -19,7 +43,7 @@ export const getAutoPlanRecommendation = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -38,7 +62,6 @@ export const getAutoPlanRecommendation = async (
       }
     });
 
-    // Correctly using .text property
     return JSON.parse(response.text || '[]');
   } catch (error) {
     console.error("AI Recommendation Error:", error);
